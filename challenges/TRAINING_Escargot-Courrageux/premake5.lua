@@ -5,7 +5,6 @@ project(prj_name)
 	location (project_dir)
 	targetdir (bin_dir)
 	objdir (bin_obj_dir)
-	debugdir ("./")
 
 	files 
 	{

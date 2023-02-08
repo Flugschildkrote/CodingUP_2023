@@ -85,8 +85,27 @@ std::vector<uint8_t> base64Decode(std::string_view data_base64) {
     return binaryResult;
 }
 
+void parseSpaceInvaders(void) {
+
+    int w, h, comp;
+    stbi_uc* pixels = stbi_load("data/invaders_ref.png", &w, &h, &comp, 0);
+    std::cout << w << ", " << h << std::endl;
+
+    int minWhite = w;
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+
+        }
+    }
+
+}
+
 int main(void)
 {
+    parseSpaceInvaders();
+    return EXIT_SUCCESS;
     auto printOperator = [](const int& value, size_t accumulator) {
         std::cout << value << "-" << std::endl;
         return 0;
