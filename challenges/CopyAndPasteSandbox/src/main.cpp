@@ -8,6 +8,11 @@
 #include <stb_image_write.h>
 #include <fstream>
 
+#ifdef min
+#undef min
+#endif // min
+
+
 size_t stringReader(std::string_view inData, std::string& outStr) {
     outStr = std::string(inData);
     return outStr.size();
@@ -85,20 +90,165 @@ std::vector<uint8_t> base64Decode(std::string_view data_base64) {
     return binaryResult;
 }
 
+/*
+template <typename T>
+class VectorView 
+{
+public:
+    using value_type = T;
+public:
+    VectorView(T* pData, size_t size)
+        : m_Data(pData), m_Size(size)
+    {
+
+    };
+
+    size_t size(void) const noexcept { return m_Size; }
+
+
+    T* getBuffer(void) noexcept { return m_Data; }
+    const T* getBuffer(void) const noexcept { return m_Data; }
+
+    T& operator[](size_t index) noexcept {
+        assert((index < m_Size) && "Index out of bounds"); 
+        return m_Data[index];
+    };
+
+    const T& operator[](size_t index) const noexcept {
+        assert((index < m_Size) && "Index out of bounds");
+        return m_Data[index];
+    };
+
+private:
+    T* m_Data;
+    size_t m_Size;
+
+
+    template <typename T_IT>
+    class Iterator {
+    public:
+
+    private:
+        VectorView
+    };
+};
+*/
+
+
+/*struct Pixel
+{
+    char r;
+    char g;
+    char b;
+
+    /*bool operator&&(const Pixel& other) const {
+        return (r & other.r) 
+    }
+};*/
+
+/*
+class PictureRGBA {
+
+    //std::unique_ptr<
+    const Pixel& get
+
+};*/
+
+
+
+
+class ImageView 
+{
+    class Iterator {
+
+       // const Pixel& operator
+        Iterator operator++(int) {
+          
+            if (relVirtualPosX == view.virtualViewWidth) {
+                relVirtualPosX = 0;
+                relVirtualPosY++;
+            }
+
+            currentValue = &view.getPixelRelVirtual(relVirtualPosX, relVirtualPosY);
+        }
+
+
+    private:
+        int relVirtualPosX, relVirtualPosY; // relative to the start of the view
+        const Pixel* currentValue;
+        ImageView& view;
+    };
+
+    const Pixel& getPixelRelVirtual(int relativeVirtualX, int relativeVirtualY) {
+        int virtualOffsetX = rawToVirtual(rawPixelOffsetX);
+        int virtualOffsetY = rawToVirtual(rawPixelOffsetY);
+
+        const Pixel* pPixel = imageStart
+
+        return;
+    }
+
+    int rawToVirtual(int raw) {
+        return raw * virtualPixelSize;
+    }
+
+    int virtualToRaw(int virtualVal) {
+        return virtualVal / virtualPixelSize;
+    }
+   
+    PictureRGBA picture;
+    int rawPixelOffsetX, rawPixelOffsetY;
+    int rawImageWidth, rawImageHeight;
+    int virtualViewWidth, virtualViewHeight;
+    int virtualPixelSize;
+};
+
+//std::map<char, 
+
 void parseSpaceInvaders(void) {
 
     int w, h, comp;
-    stbi_uc* pixels = stbi_load("data/invaders_ref.png", &w, &h, &comp, 0);
-    std::cout << w << ", " << h << std::endl;
+    stbi_uc* pixels = stbi_load("data/invaders_ref.png", &w, &h, &comp, 3);
+    std::cout << w << ", " << h  << ", comp=" << comp << std::endl;
 
-    int minWhite = w;
+    int pixelScale = w;
+    int pixelCount = 0;
+    int tileHeight = 0;
+
+    // search for pixel scale
     for (int y = 0; y < h; ++y)
     {
         for (int x = 0; x < w; ++x)
         {
+            uint32_t pixelPos = (y * w + x)*3;
+            uint32_t pixelTotal = pixels[pixelPos] + pixels[pixelPos + 1] + pixels[pixelPos + 2];
 
+            if (pixelTotal > 0 && pixelTotal < (255 * 3)) {
+                tileHeight = y;
+                goto end_scan;
+            }
+
+            if (pixelTotal > 0) {
+                pixelCount++;
+            }
+            else if(pixelCount > 0){
+
+                pixelScale = std::min<int>(pixelCount, pixelScale);
+                pixelCount = 0;
+            }
         }
     }
+end_scan:
+
+
+    int numAliens = 9;
+    tileHeight /= pixelScale;
+    int tileWidth = w / pixelScale / numAliens;
+
+
+
+
+    std::cout << "Pixel size=" << pixelScale << ", " << tileWidth << "x" << tileHeight << std::endl;
 
 }
 
