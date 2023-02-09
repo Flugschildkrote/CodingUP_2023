@@ -5,7 +5,10 @@ config_path = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 bin_dir = (_MAIN_SCRIPT_DIR .. "/bin/%{prj.name}/" .. config_path)
 lib_dir = (_MAIN_SCRIPT_DIR .. "/lib/" .. config_path)
 bin_obj_dir = (_MAIN_SCRIPT_DIR .. "/bin-obj/" .. config_path)
-deps_include_dirs = (_MAIN_SCRIPT_DIR .. "/dependencies/*/include")
+deps_include_dirs = {
+	(_MAIN_SCRIPT_DIR .. "/dependencies/*/include"),
+	(_MAIN_SCRIPT_DIR .. "/dependencies/boost-1.81.0/libs/**/include")
+}
 curl_dll_dir = (_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. config_path .. "/")
 
 lib_dirs = {
