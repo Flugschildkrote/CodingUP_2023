@@ -157,7 +157,7 @@ class PictureRGBA {
 
 
 
-class ImageView 
+/*class ImageView
 {
     class Iterator {
 
@@ -201,7 +201,7 @@ class ImageView
     int rawImageWidth, rawImageHeight;
     int virtualViewWidth, virtualViewHeight;
     int virtualPixelSize;
-};
+};*/
 
 //std::map<char, 
 

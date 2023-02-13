@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <execution>
 #include <filesystem>
+#include <sndfile.hh>
 
 template <typename T>
 T myPow(T value, size_t pow) {
@@ -29,7 +30,32 @@ T myPow(T value, size_t pow) {
 
 int main(void)
 {
+    try {
+        namespace fs = std::filesystem;
+        std::cout << fs::current_path() << std::endl;
+        std::string path = "./data/ref_musics";
+        auto itt = fs::directory_iterator(path);
 
+        using sampleType_t = double;
+
+        using AudioFileData_t = std::vector<sampleType_t>;
+        std::vector<AudioFileData_t> audiosData;
+        for (const auto& entry : fs::directory_iterator(path)) {
+            SndfileHandle handle(entry.path().c_str(), SFM_READ);
+            if (handle) {
+                std::vector<sampleType_t> fileData(handle.frames() * handle.channels());
+                if (handle.channels() != 2) {
+                    throw std::runtime_error("Audio file was not stereo");
+                }
+                std::cout << handle.readf(fileData.data(), fileData.size()) << std::endl;
+            }
+        }
+    }
+    catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+    }
+
+    return 0;
 
     std::vector<std::string> inFiles = {
         "data/0_tetris.wav",
@@ -103,12 +129,12 @@ int main(void)
 
         // find the closest match 
         sampleType_t closestMatch = diffRatio[0];
-        size_t closestIndex = 0;
+        char closestIndex = 0;
         for (size_t i = 1; i < diffRatio.size(); ++i) {
 
             if (diffRatio[i] < closestMatch) {
                 closestMatch = diffRatio[i];
-                closestIndex = i;
+                closestIndex = (char)i;
             }
         }
 

@@ -14,7 +14,22 @@ curl_dll_dir = (_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. config_p
 lib_dirs = {
 	(_MAIN_SCRIPT_DIR .. "/lib/" .. config_path),
 	(_MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/lib"),
-	(_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. config_path)
+	(_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. config_path),
+	(_MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/lib/%{cfg.system}/%{cfg.architecture}")
+}
+
+link_libs = {
+    "anubis",
+	"stb",
+	"libssl",
+	"libcrypto",
+	"sndfile"
+}
+
+post_build_copy_commands = {
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/libssl-3.dll %{cfg.targetdir}"),
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/libcrypto-3.dll %{cfg.targetdir}"),
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/bin/%{cfg.system}/%{cfg.architecture}/sndfile.dll %{cfg.targetdir}"),
 }
 
 workspace "CodingGames_2023"
