@@ -14,6 +14,66 @@
 #include <execution>
 #include <filesystem>
 #include <sndfile.hh>
+#include <map>
+
+
+template <typename T>
+class MemoryView 
+{
+public:
+
+    template <typename TT>
+    class Iterator_t
+    {
+    public:
+        Iterator_t(TT& mv, size_t cursor) {
+
+        }
+
+    private:
+        TT* m_MemoryView;
+        size_t m_Cursor;
+    };
+
+    size_t size(void) const noexcept {
+        const size_t removedElements = (m_VirtualElementStartOffset + m_ElementSize - 1) / m_VirtualElementStride;
+        const size_t numElements = (m_RawBufferSizeBytes / m_VirtualElementStride;
+        return (numElements - removedElements);
+    }
+
+    const T& operator[](size_t index) const {
+        size_t byteOffset = m_VirtualElementStartOffset + (m_VirtualElementStride * index);
+        size_t endOffset = byteOffset + m_ElementSize;
+
+        if (endOffset > m_RawBufferSizeBytes) {
+            throw std::runtime_error("MemoryViex: index out of bounds");
+        }
+
+        void* dataAddress = m_RawBuffer + byteOffset;
+        return *reinterpret_cast<T*>(dataAddress);
+    }
+
+    T& operator[](size_t index) {
+        size_t byteOffset = m_VirtualElementStartOffset + (m_VirtualElementStride * index);
+        size_t endOffset = byteOffset + m_ElementSize;
+
+        if (endOffset > m_RawBufferSizeBytes) {
+            throw std::runtime_error("MemoryViex: index out of bounds");
+        }
+
+        void* dataAddress = m_RawBuffer + byteOffset;
+        return *reinterpret_cast<T*>(dataAddress);
+    }
+
+
+private:
+    void* m_RawBuffer;
+    size_t m_RawBufferSizeBytes;
+    size_t m_VirtualElementStartOffset; // Required: 
+    size_t m_VirtualElementStride; // Required : m_RawBufferSizeBytes % stride == 0
+    static constexpr size_t m_ElementSize = sizeof(T);
+};
+
 
 template <typename T>
 T myPow(T value, size_t pow) {
@@ -24,6 +84,28 @@ T myPow(T value, size_t pow) {
     }
 
     return result;
+}
+
+uint32_t CountBits(uint64_t val)
+{
+    uint32_t result = 0;
+    for (uint32_t i = 0; i < sizeof(val) * 8; ++i) {
+        result += static_cast<bool>(val & 0x01);
+        val >>= 1;
+    }
+
+    return result;
+}
+
+void PrintBitsIndex(uint64_t val)
+{
+    for (uint32_t i = 0; i < sizeof(val) * 8; ++i) {
+        if (val & 0x01) {
+            std::cout << (i + 1) << ", ";
+        }
+        val >>= 1;
+    }
+    std::cout << std::endl;
 }
 
 
@@ -66,22 +148,32 @@ int main(void)
         const uint32_t samplePerHalfSecond = samplePerSecond / 2;
 
         // generate mixed data 
+        // On garde seulement ceux ou il y a exactement 7 bits à 1
         uint32_t numMix = myPow<uint32_t>(2, numFiles);
-        std::vector<std::vector<sampleType_t>> mixedAudios(numMix);
+
+
+
+        //std::vector<std::vector<sampleType_t>> mixedAudios;
+        std::map<uint32_t, std::vector<sampleType_t>> mixedAudios;
+        //mixedAudios.reserve(nu)
 
         std::cout << "Generating " << numMix << " mixes.." << std::endl;
 
-        size_t selectedNumSamples = 20000;
-        mixedAudios[0].resize(selectedNumSamples);
-        std::fill(mixedAudios[0].begin(), mixedAudios[0].end(), sampleType_t(0));
-        for (size_t i = 1; i < numMix; ++i)
+        size_t selectedNumSamples = 40000;
+        //mixedAudios[0].resize(selectedNumSamples);
+        //std::fill(mixedAudios[0].begin(), mixedAudios[0].end(), sampleType_t(0));
+        for (uint64_t i = 1; i < numMix; ++i)
         {
+            if (CountBits(i) != 7) {
+                continue;
+            }
+
             std::vector<sampleType_t>& currentMix = mixedAudios[i];
             currentMix.resize(selectedNumSamples);
             uint32_t numFilesInMix = 0;
 
             for (size_t refAudioId = 0; refAudioId < numFiles; ++refAudioId) {
-                if ((i & (1 << refAudioId)) > 0) {
+                if ((i & (uint64_t(1) << refAudioId)) > 0) {
                     const std::vector<sampleType_t>& currentAudioToMix = audiosData[refAudioId];
                     // Add the audio file to the samples
                     numFilesInMix++;
@@ -91,13 +183,48 @@ int main(void)
                 }
             }
 
+            assert(numFilesInMix == 7);
             for (size_t ii = 0; ii < selectedNumSamples; ++ii) {
                 currentMix[ii] /= sampleType_t(numFilesInMix);
             }
         }
 
+        std::cout << "Mixes with 7 samples=" << mixedAudios.size() << std::endl;
 
         // Ici l'audio est mixé
+        // Try to find a match
+
+        SndfileHandle mysteryFile("data/cacophonie.wav", SFM_READ);
+        std::vector<sampleType_t> samples(mysteryFile.channels() * mysteryFile.frames());
+        mysteryFile.readf(samples.data(), selectedNumSamples);
+
+
+        std::map<uint32_t, sampleType_t> diffRatio;
+        for(auto it=mixedAudios.begin(); it != mixedAudios.end(); ++it) 
+        {
+            sampleType_t& diff = diffRatio[it->first];
+            for (size_t ii = 0; ii < selectedNumSamples; ++ii) {
+                diff += std::abs(it->second[ii] - samples[ii*2]);
+            }
+            diff /= static_cast<double>(selectedNumSamples);
+            // std::cout << "[" << i << "]" << " match=" << diff << std::endl;
+        }
+
+        // find the closest match 
+        sampleType_t closestMatch = diffRatio.begin()->first;
+        size_t closestIndex = 0;
+        for (auto it = diffRatio.begin(); it != diffRatio.end(); ++it) {
+
+            if (it->second < closestMatch) {
+                closestMatch = it->second;
+                closestIndex = it->first;
+            }
+           // if (diffRatio[i] < 10e-3) {
+               // std::cout << "May match with " << i << " : " << diffRatio[i] << std::endl;
+           // }
+        }
+        std::cout << "May match with " << closestIndex << " : " << closestMatch << std::endl;
+        PrintBitsIndex(closestIndex);
 
     }
     catch (const std::exception& e) {
