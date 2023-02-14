@@ -2,20 +2,23 @@ workspace_dir = (_MAIN_SCRIPT_DIR .. "/projects/" .. _ACTION)
 project_dir = ("%{wks.location}" .. "/%{prj.name}")
 
 config_path = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
+dependencies_config_path = "%{cfg.system}/%{cfg.platform}/"
 bin_dir = (_MAIN_SCRIPT_DIR .. "/bin/%{prj.name}/" .. config_path)
 lib_dir = (_MAIN_SCRIPT_DIR .. "/lib/" .. config_path)
 bin_obj_dir = (_MAIN_SCRIPT_DIR .. "/bin-obj/" .. config_path)
+
 deps_include_dirs = {
 	(_MAIN_SCRIPT_DIR .. "/dependencies/*/include"),
 	(_MAIN_SCRIPT_DIR .. "/dependencies/boost-1.81.0/libs/**/include")
 }
+
 curl_dll_dir = (_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. config_path .. "/")
 
 lib_dirs = {
 	(_MAIN_SCRIPT_DIR .. "/lib/" .. config_path),
-	(_MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/lib"),
-	(_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. config_path),
-	(_MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/lib/%{cfg.system}/%{cfg.architecture}")
+	(_MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/lib/" .. dependencies_config_path),
+	(_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. dependencies_config_path),
+	(_MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/lib/" .. dependencies_config_path)
 }
 
 link_libs = {
@@ -27,9 +30,10 @@ link_libs = {
 }
 
 post_build_copy_commands = {
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/dependencies/curl-7.87.1/bin/" .. dependencies_config_path .. "libcurl-d.dll %{cfg.targetdir}"),
 	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/libssl-3.dll %{cfg.targetdir}"),
 	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/libcrypto-3.dll %{cfg.targetdir}"),
-	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/bin/%{cfg.system}/%{cfg.architecture}/sndfile.dll %{cfg.targetdir}"),
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/bin/" .. dependencies_config_path .. "sndfile.dll %{cfg.targetdir}"),
 }
 
 workspace "CodingGames_2023"
@@ -46,11 +50,15 @@ workspace "CodingGames_2023"
 	}
 
 	platforms {
-		"Win32"
+		"x86",
+		"x64"
 	}
 	
-	filter "platforms:Win32"
+	filter "platforms:x86"
 		architecture "x86"
+
+	filter "platforms:x64"
+		architecture "x64"
 	
 	filter "configurations:Debug"
 		symbols "On"

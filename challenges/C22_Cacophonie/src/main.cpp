@@ -10,7 +10,6 @@
 #include <thread>
 #include <mutex>
 #include <boost/multiprecision/cpp_int.hpp>
-#include <AudioFile/AudioFile.h>
 #include <algorithm>
 #include <execution>
 #include <filesystem>
@@ -40,16 +39,66 @@ int main(void)
 
         using AudioFileData_t = std::vector<sampleType_t>;
         std::vector<AudioFileData_t> audiosData;
-        for (const auto& entry : fs::directory_iterator(path)) {
+        uint32_t numSamples;
+        uint32_t samplePerSecond;
+        uint32_t numFiles = 0;
+
+        for (const auto& entry : fs::directory_iterator(path))
+        {
+            numFiles += 1;
             SndfileHandle handle(entry.path().c_str(), SFM_READ);
-            if (handle) {
-                std::vector<sampleType_t> fileData(handle.frames() * handle.channels());
+            if (handle)
+            {
+                AudioFileData_t& fileData = audiosData.emplace_back(handle.frames() * handle.channels());
                 if (handle.channels() != 2) {
                     throw std::runtime_error("Audio file was not stereo");
                 }
-                std::cout << handle.readf(fileData.data(), fileData.size()) << std::endl;
+
+                numSamples = handle.frames();
+                samplePerSecond = handle.samplerate();
+                handle.readf(fileData.data(), fileData.size());
+            }
+            else {
+                throw std::runtime_error("Failed to read audioFile");
             }
         }
+
+        const uint32_t samplePerHalfSecond = samplePerSecond / 2;
+
+        // generate mixed data 
+        uint32_t numMix = myPow<uint32_t>(2, numFiles);
+        std::vector<std::vector<sampleType_t>> mixedAudios(numMix);
+
+        std::cout << "Generating " << numMix << " mixes.." << std::endl;
+
+        size_t selectedNumSamples = 20000;
+        mixedAudios[0].resize(selectedNumSamples);
+        std::fill(mixedAudios[0].begin(), mixedAudios[0].end(), sampleType_t(0));
+        for (size_t i = 1; i < numMix; ++i)
+        {
+            std::vector<sampleType_t>& currentMix = mixedAudios[i];
+            currentMix.resize(selectedNumSamples);
+            uint32_t numFilesInMix = 0;
+
+            for (size_t refAudioId = 0; refAudioId < numFiles; ++refAudioId) {
+                if ((i & (1 << refAudioId)) > 0) {
+                    const std::vector<sampleType_t>& currentAudioToMix = audiosData[refAudioId];
+                    // Add the audio file to the samples
+                    numFilesInMix++;
+                    for (size_t ii = 0; ii < selectedNumSamples; ++ii) {
+                        currentMix[ii] += currentAudioToMix[ii * 2]; // *2 car on est en stéréo entremellé
+                    }
+                }
+            }
+
+            for (size_t ii = 0; ii < selectedNumSamples; ++ii) {
+                currentMix[ii] /= sampleType_t(numFilesInMix);
+            }
+        }
+
+
+        // Ici l'audio est mixé
+
     }
     catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
@@ -57,7 +106,7 @@ int main(void)
 
     return 0;
 
-    std::vector<std::string> inFiles = {
+    /*std::vector<std::string> inFiles = {
         "data/0_tetris.wav",
         "data/1_bubble_bobble.wav",
         "data/2_super_mario_kart.wav",
@@ -148,6 +197,6 @@ int main(void)
 
 
     //std::cout << "Audio length=" << audio.getLengthInSeconds() << "s" << std::endl;
-
+    */
     return EXIT_SUCCESS;
 }
