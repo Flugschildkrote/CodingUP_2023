@@ -15,63 +15,19 @@
 #include <filesystem>
 #include <sndfile.hh>
 #include <map>
+#include <anubis/util/MemoryView.hpp>
 
 
-template <typename T>
-class MemoryView 
+class AudioFile
 {
+    using ChannelView = anubis::MemoryView<double>;
 public:
 
-    template <typename TT>
-    class Iterator_t
-    {
-    public:
-        Iterator_t(TT& mv, size_t cursor) {
-
-        }
-
-    private:
-        TT* m_MemoryView;
-        size_t m_Cursor;
-    };
-
-    size_t size(void) const noexcept {
-        const size_t removedElements = (m_VirtualElementStartOffset + m_ElementSize - 1) / m_VirtualElementStride;
-        const size_t numElements = (m_RawBufferSizeBytes / m_VirtualElementStride;
-        return (numElements - removedElements);
-    }
-
-    const T& operator[](size_t index) const {
-        size_t byteOffset = m_VirtualElementStartOffset + (m_VirtualElementStride * index);
-        size_t endOffset = byteOffset + m_ElementSize;
-
-        if (endOffset > m_RawBufferSizeBytes) {
-            throw std::runtime_error("MemoryViex: index out of bounds");
-        }
-
-        void* dataAddress = m_RawBuffer + byteOffset;
-        return *reinterpret_cast<T*>(dataAddress);
-    }
-
-    T& operator[](size_t index) {
-        size_t byteOffset = m_VirtualElementStartOffset + (m_VirtualElementStride * index);
-        size_t endOffset = byteOffset + m_ElementSize;
-
-        if (endOffset > m_RawBufferSizeBytes) {
-            throw std::runtime_error("MemoryViex: index out of bounds");
-        }
-
-        void* dataAddress = m_RawBuffer + byteOffset;
-        return *reinterpret_cast<T*>(dataAddress);
-    }
-
+    ChannelView getChannel(size_t channelIndex);
 
 private:
-    void* m_RawBuffer;
-    size_t m_RawBufferSizeBytes;
-    size_t m_VirtualElementStartOffset; // Required: 
-    size_t m_VirtualElementStride; // Required : m_RawBufferSizeBytes % stride == 0
-    static constexpr size_t m_ElementSize = sizeof(T);
+
+    std::vector<double> m_Samples;
 };
 
 
