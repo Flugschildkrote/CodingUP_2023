@@ -15,19 +15,61 @@
 #include <filesystem>
 #include <sndfile.hh>
 #include <map>
-#include <anubis/util/MemoryView.hpp>
+#include <future>
+#include <anubis/sound/SoundFile.hpp>
 
-
-class AudioFile
+class ThreadPool
 {
-    using ChannelView = anubis::MemoryView<double>;
 public:
+    /* 
+     * @brief Creates a thread pool with a fiex amount of threads
+     * @param numThreads The number of threads in the pool. 0 mean automatic (ie. The maximum number of concurrent threads allowed by the machine)
+     * @param threadMultiplier The pool will start numThreads * threadMultiplier. When using automatic mode, it may be a good idea to add more threads for better loadBalancing
+     */
+    ThreadPool(uint32_t numThreads = 0, uint32_t threadMultiplier = 1)
+    {
+        numThreads = numThreads ? numThreads : std::thread::hardware_concurrency();
+        numThreads *= threadMultiplier;
+        m_ThreadPool.resize(numThreads);
 
-    ChannelView getChannel(size_t channelIndex);
+        ThreadPool& pool = *this;
+        auto workerFnc = [&pool] {
+
+
+            bool exitRequested = pool.exitRequested();
+            while (!exitRequested)
+            {
+                // try to get a job
+
+                exitRequested
+            }
+
+        }
+    }
+
+    template <typename T, typename T_OP>
+    std::future<T> pushTask(T_OP&& op) {
+
+    }
+
 
 private:
 
-    std::vector<double> m_Samples;
+    bool exitRequested(void) {
+        std::unique_lock<std::mutex> lock(m_MainMutex);
+        return m_ExitRequested;
+    }
+
+    bool exitRequested(void) {
+        std::unique_lock<std::mutex> lock(m_MainMutex);
+        return m_ExitRequested;
+    }
+
+    std::vector<std::thread> m_ThreadPool;
+    std::queue<std::function<void(void)>> m_TasksQueue;
+    std::mutex m_MainMutex;
+    bool m_ExitRequested;
+    //std::stack<uint32
 };
 
 
@@ -76,38 +118,21 @@ int main(void)
         using sampleType_t = double;
 
         using AudioFileData_t = std::vector<sampleType_t>;
-        std::vector<AudioFileData_t> audiosData;
-        uint32_t numSamples;
-        uint32_t samplePerSecond;
-        uint32_t numFiles = 0;
+        std::vector<anubis::AudioFile> audiosData;
 
         for (const auto& entry : fs::directory_iterator(path))
         {
-            numFiles += 1;
-            SndfileHandle handle(entry.path().c_str(), SFM_READ);
-            if (handle)
-            {
-                AudioFileData_t& fileData = audiosData.emplace_back(handle.frames() * handle.channels());
-                if (handle.channels() != 2) {
-                    throw std::runtime_error("Audio file was not stereo");
-                }
-
-                numSamples = handle.frames();
-                samplePerSecond = handle.samplerate();
-                handle.readf(fileData.data(), fileData.size());
-            }
-            else {
-                throw std::runtime_error("Failed to read audioFile");
-            }
+            std::string filePath = entry.path().string();
+            audiosData.emplace_back(filePath);
         }
 
-        const uint32_t samplePerHalfSecond = samplePerSecond / 2;
+        const uint32_t samplePerHalfSecond = audiosData[0].getSampleRate() / 2;
+        const uint32_t numSamples = audiosData[0].getNumFrames();
+        uint32_t numFiles = static_cast<uint32_t>(audiosData.size());
 
         // generate mixed data 
         // On garde seulement ceux ou il y a exactement 7 bits à 1
         uint32_t numMix = myPow<uint32_t>(2, numFiles);
-
-
 
         //std::vector<std::vector<sampleType_t>> mixedAudios;
         std::map<uint32_t, std::vector<sampleType_t>> mixedAudios;
@@ -130,11 +155,12 @@ int main(void)
 
             for (size_t refAudioId = 0; refAudioId < numFiles; ++refAudioId) {
                 if ((i & (uint64_t(1) << refAudioId)) > 0) {
-                    const std::vector<sampleType_t>& currentAudioToMix = audiosData[refAudioId];
+                    const anubis::AudioFile& currentAudioToMix = audiosData[refAudioId];
                     // Add the audio file to the samples
                     numFilesInMix++;
+                    anubis::MemoryView<const double> currentChannelToMix = currentAudioToMix.getChannel(0);
                     for (size_t ii = 0; ii < selectedNumSamples; ++ii) {
-                        currentMix[ii] += currentAudioToMix[ii * 2]; // *2 car on est en stéréo entremellé
+                        currentMix[ii] += currentChannelToMix[ii]; // *2 car on est en stéréo entremellé
                     }
                 }
             }

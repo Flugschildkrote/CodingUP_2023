@@ -2,9 +2,18 @@
 #include "anubis/util/MemoryView.hpp"
 #endif // !ANUBIS_MEMORY_VIEW_HPP
 
+#include <stdexcept>
+
 namespace anubis
 {
 
+//-----------------------------------------------
+template <typename T>
+MemoryView<T>::MemoryView(RawBuffer_t pBuffer, size_t bufferByteSize, size_t offset, size_t stride)
+    : m_RawBuffer(pBuffer), m_RawBufferSizeBytes(bufferByteSize), m_VirtualElementStartOffset(offset), m_VirtualElementStride(stride)
+{
+
+}
 
 //-----------------------------------------------
 template <typename T>
@@ -39,7 +48,7 @@ template <typename T>
 size_t MemoryView<T>::size(void) const noexcept 
 {
     const size_t removedElements = (m_VirtualElementStartOffset + m_ElementSize - 1) / m_VirtualElementStride;
-    const size_t numElements = (m_RawBufferSizeBytes / m_VirtualElementStride;
+    const size_t numElements = (m_RawBufferSizeBytes / m_VirtualElementStride);
     return (numElements - removedElements);
 }
 
@@ -68,7 +77,9 @@ T& MemoryView<T>::getValueByIndex(size_t index) const
         throw std::runtime_error("MemoryViex: index out of bounds");
     }
 
-    void* dataAddress = m_RawBuffer + byteOffset;
+    using ByteBuffer_t = std::conditional_t<std::is_const_v<T>, const uint8_t*, uint8_t*>;
+
+    ByteBuffer_t dataAddress = reinterpret_cast<ByteBuffer_t>(m_RawBuffer) + byteOffset;
     return *reinterpret_cast<T*>(dataAddress);
 }
 

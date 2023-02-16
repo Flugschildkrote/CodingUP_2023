@@ -12,13 +12,17 @@ class MemoryView
     template <bool IsConst>
     class Iterator_t;
 
+
 public:
+    using RawBuffer_t = std::conditional_t<std::is_const_v<T>, const void*, void*>;
     using ValueType = T;
     using ReferenceType = T&;
     using Iterator = Iterator_t<false>;
     using ConstIterator = Iterator_t<true>;
 
 public:
+
+    MemoryView(RawBuffer_t pBuffer, size_t bufferByteSize, size_t offset = 0, size_t stride = sizeof(T));
 
     Iterator begin(void) noexcept;
     ConstIterator begin(void) const noexcept;
@@ -32,7 +36,7 @@ public:
 private:
     T& getValueByIndex(size_t index) const;
 
-    void* m_RawBuffer;
+    RawBuffer_t m_RawBuffer;
     size_t m_RawBufferSizeBytes;
     size_t m_VirtualElementStartOffset; // Required: 
     size_t m_VirtualElementStride; // Required : m_RawBufferSizeBytes % stride == 0
@@ -49,6 +53,7 @@ private:
         Iterator_t(MemoryView_t& mv, size_t cursor);
 
         bool operator==(const Iterator_t&) const noexcept = default;
+        bool operator!=(const Iterator_t&) const noexcept = default;
         Iterator_t& operator++(void) noexcept;
         Iterator_t operator++(int) noexcept;
 
