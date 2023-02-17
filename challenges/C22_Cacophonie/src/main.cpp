@@ -30,45 +30,75 @@ public:
     {
         numThreads = numThreads ? numThreads : std::thread::hardware_concurrency();
         numThreads *= threadMultiplier;
-        m_ThreadPool.resize(numThreads);
 
         ThreadPool& pool = *this;
         auto workerFnc = [&pool] {
 
-
-            bool exitRequested = pool.exitRequested();
-            while (!exitRequested)
+            std::unique_lock lk(pool.m_MainMutex);
+            // here the mutex is aquired
+            do
             {
-                // try to get a job
+                //  Wait for a job if the queue is empty. Will be woken up when pool request termination
+                if (pool.m_WorkerThreads.empty()) {
+                    pool.m_TasksConditionVariable.wait(lk, [&pool]() { return !pool.m_TasksQueue.empty() || pool.m_ExitRequested; });
+                }
 
-                exitRequested
-            }
+                // Exit if needed.
+                if (pool.m_ExitRequested) {
+                    break;
+                }
 
+                // Pop the job and execute it
+                std::function<void(void)> fnc = std::move(pool.m_TasksQueue.front());
+                pool.m_TasksQueue.pop();
+
+                lk.unlock();
+                fnc();
+                lk.lock();
+            } while (true);
+
+        };
+
+        // Start worker threads
+        m_WorkerThreads.resize(numThreads);
+        for (std::thread& t : m_WorkerThreads) {
+            t = std::thread(workerFnc);
         }
     }
 
-    template <typename T, typename T_OP>
-    std::future<T> pushTask(T_OP&& op) {
+    template <typename T_RESULT, typename T_TASK>
+    std::future<T_RESULT> pushTask(T_TASK&& op) {
+        std::promise<T_RESULT> promise;
 
+        m_TasksQueue.push(
+            []() {
+
+            }
+        )
     }
 
 
 private:
 
-    bool exitRequested(void) {
-        std::unique_lock<std::mutex> lock(m_MainMutex);
-        return m_ExitRequested;
+    void terminateThreads(void)
+    {
+        {
+            std::lock_guard lk(m_MainMutex);
+            m_ExitRequested = true;
+        }
+        m_TasksConditionVariable.notify_all();
+
+        for (std::thread& t : m_WorkerThreads) {
+            t.join();
+        }
     }
 
-    bool exitRequested(void) {
-        std::unique_lock<std::mutex> lock(m_MainMutex);
-        return m_ExitRequested;
-    }
-
-    std::vector<std::thread> m_ThreadPool;
+    std::vector<std::thread> m_WorkerThreads;
     std::queue<std::function<void(void)>> m_TasksQueue;
+    std::condition_variable m_TasksConditionVariable;
     std::mutex m_MainMutex;
     bool m_ExitRequested;
+
     //std::stack<uint32
 };
 
