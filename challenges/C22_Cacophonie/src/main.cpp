@@ -19,39 +19,11 @@
 #include <anubis/sound/SoundFile.hpp>
 #include <anubis/util/Timer.hpp>
 #include <anubis/util/ThreadPool.hpp>
+#include <anubis/algo/Async.hpp>
 
 #ifdef min
 #undef min
 #endif // min
-
-
-template <typename T_ITERATION>
-void parallelForN(anubis::ThreadPool& pool, T_ITERATION&& it, size_t end, size_t start = 0) {
-
-    size_t numIteration = end - start;
-    size_t numThreads = pool.getNumThreads();
-    size_t numBlocks = numThreads * 4; // Multiply per 4 for (hopefully) better load balancing
-    size_t blockSize = (numIteration + numBlocks - 1) / numBlocks;
-
-    std::vector<anubis::TaskResult<void>> results(numBlocks);
-
-    for (size_t blockId = 0; blockId < numBlocks; ++blockId) {
-
-        size_t loopBegin = (blockId * blockSize) + start;
-        size_t loopEnd = std::min(loopBegin + blockSize, end);
-
-        results[blockId] = pool.pushTask<void>([it, loopBegin, loopEnd]() {
-            for (size_t i = loopBegin; i < loopEnd; ++i) {
-                it(i);
-            }
-        });
-    }
-
-    // Wait for end of execution
-    for (auto& r : results) {
-        r.future.wait();
-    }
-}
 
 
 
@@ -161,7 +133,7 @@ int main(void)
         anubis::Timer timer;
 
         timer.start();
-        parallelForN(pool, genIteration, numMix, 1);
+        anubis::parallelForN(pool, genIteration, numMix, 1);
         timer.stop();
         std::cout << "Parallel done in " << timer.getSeconds() << std::endl;
 

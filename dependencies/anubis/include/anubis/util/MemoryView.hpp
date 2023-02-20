@@ -75,7 +75,7 @@ private:
 };
 }
 
-#include "anubis/util/MemoryView.inl"
-#include "anubis/util/MemoryViewIterator.inl"
+#include "anubis/util/inl/MemoryView.inl"
+#include "anubis/util/inl/MemoryViewIterator.inl"
 
 #endif // !ANUBIS_MEMORY_VIEW_HPP
