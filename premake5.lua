@@ -28,10 +28,28 @@ link_libs = {
 	"libcurl_imp"
 }
 
+function GetPostPostBuildCommands(arch)
+
+	local commands = {
+		("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/bin/" .. dependencies_config_path .. "libcurl.dll %{cfg.targetdir}"),
+		("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/bin/" .. dependencies_config_path .. "sndfile.dll %{cfg.targetdir}"),
+	}
+
+	if(arch == "x86") then
+		table.insert(commands, ("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/" .. dependencies_config_path .. "libssl-3.dll %{cfg.targetdir}"))
+		table.insert(commands, ("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/" .. dependencies_config_path .. "libcrypto-3.dll %{cfg.targetdir}"))
+	elseif(arch == "x64") then
+		table.insert(commands, ("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/" .. dependencies_config_path .. "libssl-3-x64.dll %{cfg.targetdir}"))
+		table.insert(commands, ("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/" .. dependencies_config_path .. "libcrypto-3-x64.dll %{cfg.targetdir}"))
+	end
+
+	return commands
+end
+
 post_build_copy_commands = {
-	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/dependencies/curl-7.87.1/bin/" .. dependencies_config_path .. "libcurl-d.dll %{cfg.targetdir}"),
-	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/libssl-3.dll %{cfg.targetdir}"),
-	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/libcrypto-3.dll %{cfg.targetdir}"),
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/bin/" .. dependencies_config_path .. "libcurl.dll %{cfg.targetdir}"),
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/" .. dependencies_config_path .. "libssl-3.dll %{cfg.targetdir}"),
+	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/bin/" .. dependencies_config_path .. "libcrypto-3.dll %{cfg.targetdir}"),
 	("{COPYFILE} " .. _MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/bin/" .. dependencies_config_path .. "sndfile.dll %{cfg.targetdir}"),
 }
 

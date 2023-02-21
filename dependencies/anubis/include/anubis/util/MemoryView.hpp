@@ -73,6 +73,7 @@ private:
         size_t m_Cursor;
     };
 };
+
 }
 
 #include "anubis/util/inl/MemoryView.inl"

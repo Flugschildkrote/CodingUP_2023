@@ -7,6 +7,7 @@
 #include <stb_image.h>
 #include <stb_image_write.h>
 #include <fstream>
+#include <anubis/util/MemoryView.hpp>
 
 #ifdef min
 #undef min
@@ -153,7 +154,86 @@ class PictureRGBA {
     const Pixel& get
 
 };*/
+class Image;
 
+template <typename T>
+class ImageView
+{
+    using RawBuffer_t = std::conditional_t<std::is_const_v<T>, const void*, void*>;
+    using Image_t = std::conditional_t<std::is_const_v<T>, const Image, Image>;
+
+public:
+    ImageView(Image_t& img, uint32_t virtualPxW, uint32_t virtualPxH)
+        : m_Image(img), m_VirtualPixelWidth(virtualPxW), m_VirtualPixelHeight(virtualPxH)
+    {
+        m_RawBuffer = m_Image.data();
+        m_RowSizeByte = m_Image.getChannels() * m_Image.getWidth();
+    }
+
+    anubis::MemoryView<T> operator[](size_t rowIndex) 
+    {
+        size_t pixelStride = m_Image.getChannels(); // We assume one byte per channel. Stride is the length of one pixel (RGB..) in bytes
+        size_t virtualPixelStride = pixelStride * m_VirtualPixelWidth;
+        size_t bufferOffset = m_RowSizeByte * m_VirtualPixelHeight * rowIndex;
+
+        RawBuffer_t rowBuffer = m_RawBuffer + bufferOffset;
+        return anubis::MemoryView<T>(rowBuffer, m_RowSizeByte, 0, virtualPixelStride);
+    }
+
+    // Return the number of virtual rows of the picture
+    size_t size(void) const noexcept {
+        return m_Image.getHeight() / m_VirtualPixelHeight;
+    }
+
+
+private:
+
+    //uint32_t m_Scale;
+    Image_t& m_Image;
+    RawBuffer_t m_RawBuffer;
+    // Virtual size is how much of pixel is a "virtual" pixel composed of
+    // For example if we want to process an image per pixel, but the image was scaled up, we can use virtual pixels
+    uint32_t m_VirtualPixelWidth, m_VirtualPixelHeight;
+    uint32_t m_RowSizeByte;
+};
+
+
+class Image
+{
+public:
+    //Image(void);
+    Image(const std::string& filePath, uint32_t numChannels = 0)
+        : m_Data(nullptr, stbi_image_free), m_NumChannels(0), m_Width(0), m_Height(0)
+    {
+
+        int w, h, comp;
+        stbi_uc* pixels = stbi_load("data/invaders_ref.png", &w, &h, &comp, numChannels);
+
+        if (!pixels) {
+            throw std::runtime_error("Failed to loag image \"" + filePath + "\"");
+        }
+        
+        m_Data.reset(pixels);
+        m_NumChannels = numChannels ? numChannels : comp;
+        m_Width = w;
+        m_Height = h;
+    }
+
+    template <typename T>
+    ImageView
+
+
+    uint32_t getWidth(void) const noexcept { return m_Width; }
+    uint32_t getHeight(void) const noexcept { return m_Height; }
+    uint32_t getChannels(void) const noexcept { return m_NumChannels; }
+    
+    const uint8_t* data(void) const noexcept { return m_Data.get(); }
+    uint8_t* data(void) noexcept { return m_Data.get(); }
+private:
+    std::unique_ptr<uint8_t, void(*)(void*)> m_Data;
+    uint32_t m_NumChannels;
+    uint32_t m_Width, m_Height;
+};
 
 
 
@@ -207,18 +287,22 @@ class PictureRGBA {
 
 void parseSpaceInvaders(void) {
 
-    int w, h, comp;
-    stbi_uc* pixels = stbi_load("data/invaders_ref.png", &w, &h, &comp, 3);
-    std::cout << w << ", " << h  << ", comp=" << comp << std::endl;
+    Image refInvaders("data/invaders_ref.png", 3);
 
+    const uint32_t w = refInvaders.getWidth();
+    const uint32_t h = refInvaders.getHeight();
+    const uint8_t* pixels = refInvaders.data();
     int pixelScale = w;
     int pixelCount = 0;
     int tileHeight = 0;
 
+
+
+
     // search for pixel scale
-    for (int y = 0; y < h; ++y)
+    for (uint32_t y = 0; y < h; ++y)
     {
-        for (int x = 0; x < w; ++x)
+        for (uint32_t x = 0; x < w; ++x)
         {
             uint32_t pixelPos = (y * w + x)*3;
             uint32_t pixelTotal = pixels[pixelPos] + pixels[pixelPos + 1] + pixels[pixelPos + 2];
@@ -255,7 +339,7 @@ end_scan:
 int main(void)
 {
     parseSpaceInvaders();
-    return EXIT_SUCCESS;
+    //return EXIT_SUCCESS;
     auto printOperator = [](const int& value, size_t accumulator) {
         std::cout << value << "-" << std::endl;
         return 0;
@@ -287,7 +371,7 @@ int main(void)
         std::string_view pixelView((const char*)pixels.data(), pixels.size());
         //std::cout << pixelView << std::endl;
         //std::cout << pixels.size() << std::endl;
-        std::ofstream pngout("out.png", std::ios::binary);
+        std::ofstream pngout("data/out.png", std::ios::binary);
         pngout.write((const char*)pixels.data(), pixels.size());
 
        // stbi_write_bmp("Out.bmp", 40, 20, 3, pixels.data());
