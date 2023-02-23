@@ -7,12 +7,12 @@
 #include <stb_image.h>
 #include <stb_image_write.h>
 #include <fstream>
+#include <anubis/util/Iterator.hpp>
 #include <anubis/util/MemoryView.hpp>
 
 #ifdef min
 #undef min
 #endif // min
-
 
 size_t stringReader(std::string_view inData, std::string& outStr) {
     outStr = std::string(inData);
@@ -163,26 +163,55 @@ class ImageView
     using Image_t = std::conditional_t<std::is_const_v<T>, const Image, Image>;
 
 public:
-    ImageView(Image_t& img, uint32_t virtualPxW, uint32_t virtualPxH)
+
+    using Iterator = anubis::GenericIterator<ImageView<T>, anubis::MemoryView<T>>;
+    using ConstIterator = anubis::GenericIterator<ImageView<const T>, anubis::MemoryView<const T>>;
+
+public:
+
+    /*
+     * Construct an image view starting at (x,y) and size of (w, h)
+     * All parameters are expressed in virtual space (a virtual pixel is composed of (virtualScale x virtualScale) real pixels
+     */
+    ImageView(Image_t& img, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t virtualScale)
         : m_Image(img), m_VirtualPixelWidth(virtualPxW), m_VirtualPixelHeight(virtualPxH)
     {
+        // Check boundaries
+        assert((x + w) * virtualScale <= img.width());
+        assert((y + h) * virtualScale <= img.height());
+
+        m_NumVirtualRows = w;
+        const uint32_t pixelSizeByte = m_Image.getChannels();
+        const uint32_t virtualPixelSizeByteX = virtualPxW * pixelSizeByte;
+        const uint32_t xOffsetByteSize = virtualOffsetX * virtualPixelSizeByteX;
+        uint32_t virtualRowByteSize = (virtualPxW * pixelSizeByte);
+
+
         m_RawBuffer = m_Image.data();
-        m_RowSizeByte = m_Image.getChannels() * m_Image.getWidth();
+        m_VirtualRowSizeByte = m_Image.getChannels() * m_Image.getWidth() * virtualScale;
     }
 
     anubis::MemoryView<T> operator[](size_t rowIndex) 
     {
-        size_t pixelStride = m_Image.getChannels(); // We assume one byte per channel. Stride is the length of one pixel (RGB..) in bytes
-        size_t virtualPixelStride = pixelStride * m_VirtualPixelWidth;
-        size_t bufferOffset = m_RowSizeByte * m_VirtualPixelHeight * rowIndex;
+        const uint32_t rowByteOffset
 
-        RawBuffer_t rowBuffer = m_RawBuffer + bufferOffset;
-        return anubis::MemoryView<T>(rowBuffer, m_RowSizeByte, 0, virtualPixelStride);
+
+        {
+            size_t pixelStride = m_Image.getChannels(); // We assume one byte per channel. Stride is the length of one pixel (RGB..) in bytes
+            size_t virtualPixelStride = pixelStride * m_VirtualPixelWidth;
+            size_t bufferOffset = m_RowSizeByte * m_VirtualPixelHeight * rowIndex;
+
+            RawBuffer_t rowBuffer = m_RawBuffer + bufferOffset;
+            return anubis::MemoryView<T>(rowBuffer, m_RowSizeByte, 0, virtualPixelStride);
+        }
     }
+
+    Iterator begin(void) noexcept { return Iterator(*this, 0); }
+    Iterator end(void) noexcept { return Iterator(*this, size()); }
 
     // Return the number of virtual rows of the picture
     size_t size(void) const noexcept {
-        return m_Image.getHeight() / m_VirtualPixelHeight;
+        return m_NumVirtualRows;
     }
 
 
@@ -191,10 +220,12 @@ private:
     //uint32_t m_Scale;
     Image_t& m_Image;
     RawBuffer_t m_RawBuffer;
+
+    uint32_t m_NumVirtualRows; 
     // Virtual size is how much of pixel is a "virtual" pixel composed of
     // For example if we want to process an image per pixel, but the image was scaled up, we can use virtual pixels
     uint32_t m_VirtualPixelWidth, m_VirtualPixelHeight;
-    uint32_t m_RowSizeByte;
+    uint32_t m_VirtualRowSizeByte;
 };
 
 
@@ -220,7 +251,9 @@ public:
     }
 
     template <typename T>
-    ImageView
+    ImageView<T> getView(uint32_t virtualPixelOffsetX, uint32_t virtualPixelOffsetY, uint32_t virtualWidth, uint32_t virtualHeight, size_t virtualPixelSize = 1) {
+        re
+    }
 
 
     uint32_t getWidth(void) const noexcept { return m_Width; }
@@ -236,52 +269,6 @@ private:
 };
 
 
-
-/*class ImageView
-{
-    class Iterator {
-
-       // const Pixel& operator
-        Iterator operator++(int) {
-          
-            if (relVirtualPosX == view.virtualViewWidth) {
-                relVirtualPosX = 0;
-                relVirtualPosY++;
-            }
-
-            currentValue = &view.getPixelRelVirtual(relVirtualPosX, relVirtualPosY);
-        }
-
-
-    private:
-        int relVirtualPosX, relVirtualPosY; // relative to the start of the view
-        const Pixel* currentValue;
-        ImageView& view;
-    };
-
-    const Pixel& getPixelRelVirtual(int relativeVirtualX, int relativeVirtualY) {
-        int virtualOffsetX = rawToVirtual(rawPixelOffsetX);
-        int virtualOffsetY = rawToVirtual(rawPixelOffsetY);
-
-        const Pixel* pPixel = imageStart
-
-        return;
-    }
-
-    int rawToVirtual(int raw) {
-        return raw * virtualPixelSize;
-    }
-
-    int virtualToRaw(int virtualVal) {
-        return virtualVal / virtualPixelSize;
-    }
-   
-    PictureRGBA picture;
-    int rawPixelOffsetX, rawPixelOffsetY;
-    int rawImageWidth, rawImageHeight;
-    int virtualViewWidth, virtualViewHeight;
-    int virtualPixelSize;
-};*/
 
 //std::map<char, 
 
@@ -379,6 +366,6 @@ int main(void)
     else {
         std::cout << "error while reading : " << result << std::endl;
     }
-    anubis::dummy();
+
     return EXIT_SUCCESS;
 }

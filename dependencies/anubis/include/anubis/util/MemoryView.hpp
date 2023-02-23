@@ -2,6 +2,7 @@
 #define ANUBIS_MEMORY_VIEW_HPP
 
 #include <type_traits>
+#include <anubis/util/Iterator.hpp>
 
 namespace anubis
 {
@@ -17,8 +18,8 @@ public:
     using RawBuffer_t = std::conditional_t<std::is_const_v<T>, const void*, void*>;
     using ValueType = T;
     using ReferenceType = T&;
-    using Iterator = Iterator_t<false>;
-    using ConstIterator = Iterator_t<true>;
+    using Iterator = GenericIterator<MemoryView, T&>;
+    using ConstIterator = GenericIterator<const MemoryView, const T&>;
 
 public:
 
@@ -42,41 +43,10 @@ private:
     size_t m_VirtualElementStride; // Required : m_RawBufferSizeBytes % stride == 0
     static constexpr size_t m_ElementSize = sizeof(T);
 
-private:
-
-    template <bool IsConst>
-    class Iterator_t
-    {
-    public:
-        using MemoryView_t = std::conditional_t<IsConst, const MemoryView, MemoryView>;
-
-        Iterator_t(MemoryView_t& mv, size_t cursor);
-
-        bool operator==(const Iterator_t&) const noexcept = default;
-        bool operator!=(const Iterator_t&) const noexcept = default;
-        Iterator_t& operator++(void) noexcept;
-        Iterator_t operator++(int) noexcept;
-
-        Iterator_t& operator--(void) noexcept;
-        Iterator_t operator--(int) noexcept;
-
-        Iterator_t operator+(size_t val) const noexcept;
-        Iterator_t operator-(size_t val) const noexcept;
-
-        Iterator_t& operator+=(size_t val) noexcept;
-        Iterator_t& operator-=(size_t val) noexcept;
-
-        MemoryView_t::ReferenceType operator*(void) const noexcept;
-
-    private:
-        MemoryView_t* m_MemoryView;
-        size_t m_Cursor;
-    };
 };
 
 }
 
 #include "anubis/util/inl/MemoryView.inl"
-#include "anubis/util/inl/MemoryViewIterator.inl"
 
 #endif // !ANUBIS_MEMORY_VIEW_HPP

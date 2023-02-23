@@ -13,7 +13,6 @@ deps_include_dirs = {
 }
 
 lib_dirs = {
-	(_MAIN_SCRIPT_DIR .. "/lib/" .. config_path),
 	(_MAIN_SCRIPT_DIR .. "/dependencies/openssl-3.0.7/lib/" .. dependencies_config_path),
 	(_MAIN_SCRIPT_DIR .. "/dependencies/curl-7.87.1/lib/" .. dependencies_config_path),
 	(_MAIN_SCRIPT_DIR .. "/dependencies/libsndfile-1.2.0/lib/" .. dependencies_config_path)
