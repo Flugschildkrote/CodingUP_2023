@@ -9,6 +9,8 @@
 #include <fstream>
 #include <anubis/util/Iterator.hpp>
 #include <anubis/util/MemoryView.hpp>
+#include <anubis/image/Image.hpp>
+#include <anubis/image/ImageView.hpp>
 
 #ifdef min
 #undef min
@@ -89,211 +91,7 @@ std::vector<uint8_t> base64Decode(std::string_view data_base64) {
     }
 
     return binaryResult;
-}
-
-/*
-template <typename T>
-class VectorView 
-{
-public:
-    using value_type = T;
-public:
-    VectorView(T* pData, size_t size)
-        : m_Data(pData), m_Size(size)
-    {
-
-    };
-
-    size_t size(void) const noexcept { return m_Size; }
-
-
-    T* getBuffer(void) noexcept { return m_Data; }
-    const T* getBuffer(void) const noexcept { return m_Data; }
-
-    T& operator[](size_t index) noexcept {
-        assert((index < m_Size) && "Index out of bounds"); 
-        return m_Data[index];
-    };
-
-    const T& operator[](size_t index) const noexcept {
-        assert((index < m_Size) && "Index out of bounds");
-        return m_Data[index];
-    };
-
-private:
-    T* m_Data;
-    size_t m_Size;
-
-
-    template <typename T_IT>
-    class Iterator {
-    public:
-
-    private:
-        VectorView
-    };
-};
-*/
-
-
-/*struct Pixel
-{
-    char r;
-    char g;
-    char b;
-
-    /*bool operator&&(const Pixel& other) const {
-        return (r & other.r) 
-    }
-};*/
-
-/*
-class PictureRGBA {
-
-    //std::unique_ptr<
-    const Pixel& get
-
-};*/
-class Image;
-
-template <typename T>
-class ImageView
-{
-    using RawBuffer_t = std::conditional_t<std::is_const_v<T>, const void*, void*>;
-    using BytePtr_t = std::conditional_t<std::is_const_v<T>, const uint8_t*, uint8_t*>;
-    using Image_t = std::conditional_t<std::is_const_v<T>, const Image, Image>;
-
-public:
-
-    using Iterator = anubis::GenericIterator<ImageView<T>, anubis::MemoryView<T>>;
-    using ConstIterator = anubis::GenericIterator<ImageView<const T>, anubis::MemoryView<const T>>;
-
-public:
-
-    ImageView(void) = default;
-
-    /*
-     * Construct an image view starting at (x,y) and size of (w, h)
-     * All parameters are expressed in virtual space (a virtual pixel is composed of (virtualScale x virtualScale) real pixels
-     */
-    ImageView(Image_t& img, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t virtualScale)
-        : m_Image(img)
-    {
-        // Check boundaries
-        assert((x + w) * virtualScale <= img.getWidth());
-        assert((y + h) * virtualScale <= img.getHeight());
-
-        const uint32_t pixelSizeByte = m_Image.getChannels();
-
-        m_RawBuffer = m_Image.data();
-        m_NumRows_VirtualSpace = h;
-        m_PixelByteSize_VirtualSpace = pixelSizeByte * virtualScale;
-        m_RowByteSize_VirtualSpace = m_PixelByteSize_VirtualSpace * m_Image.getWidth();
-        m_ViewRowByteSize = m_PixelByteSize_VirtualSpace * w;
-        m_ViewXOffsetBytes = m_PixelByteSize_VirtualSpace * x;
-        m_ViewYOffsetBytes = m_RowByteSize_VirtualSpace * y;
-    }
-
-
-    anubis::MemoryView<T> operator[](size_t rowIndex) 
-    {
-        const uint32_t rowAddress = static_cast<uint32_t>(m_ViewYOffsetBytes + (rowIndex * m_RowByteSize_VirtualSpace)); // Offset in byte to the start of the row
-        const uint32_t xOffset = m_ViewXOffsetBytes;
-        RawBuffer_t viewRowAddress = reinterpret_cast<BytePtr_t>(m_RawBuffer) + rowAddress + xOffset;
-        return anubis::MemoryView<T>(viewRowAddress, m_ViewRowByteSize, 0, m_PixelByteSize_VirtualSpace);
-    }
-
-    Iterator begin(void) noexcept { return Iterator(*this, 0); }
-    Iterator end(void) noexcept { return Iterator(*this, size()); }
-
-    // Return the number of virtual rows of the picture
-    size_t size(void) const noexcept {
-        return m_NumRows_VirtualSpace;
-    }
-
-
-private:
-
-    //uint32_t m_Scale;
-    Image_t& m_Image;
-    RawBuffer_t m_RawBuffer;
-
-    uint32_t m_NumRows_VirtualSpace; 
-    uint32_t m_PixelByteSize_VirtualSpace;
-    uint32_t m_RowByteSize_VirtualSpace;
-    uint32_t m_ViewRowByteSize;
-
-    uint32_t m_ViewXOffsetBytes, m_ViewYOffsetBytes;
-};
-
-
-class Image
-{
-public:
-    Image(void)
-        : m_Data(nullptr, stbi_image_free)
-    {
-
-    }
-
-    Image(Image&&) = default;
-    Image& operator=(Image&&) = default;
-
-    Image(const std::string& filePath, uint32_t numChannels = 0)
-        : m_Data(nullptr, stbi_image_free), m_NumChannels(0), m_Width(0), m_Height(0)
-    {
-
-        int w, h, comp;
-        stbi_uc* pixels = stbi_load("data/invaders_ref.png", &w, &h, &comp, numChannels);
-
-        if (!pixels) {
-            throw std::runtime_error("Failed to loag image \"" + filePath + "\"");
-        }
-        
-        m_Data.reset(pixels);
-        m_NumChannels = numChannels ? numChannels : comp;
-        m_Width = w;
-        m_Height = h;
-    }
-
-    /**
-     * @brief Load an image from memory. The buffer must contain a real image (png, jpeg, etc..)
-     * 
-     */
-    template <typename T>
-    Image(const T* pBuffer, size_t bufferSize, uint32_t numChannels)
-        : m_Data(nullptr, stbi_image_free), m_NumChannels(0), m_Width(0), m_Height(0)
-    {
-        int w, h, comp;
-        int sizeByte = int(sizeof(T) * bufferSize);
-        stbi_uc* pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(pBuffer), sizeByte, &w, &h, &comp, m_NumChannels);
-        if (!pixels) {
-            std::cout << stbi_failure_reason() << std::endl;
-            throw std::runtime_error("Failed to loag image from buffer");
-        }
-
-        m_Data.reset(pixels);
-        m_NumChannels = numChannels ? numChannels : comp;
-        m_Width = w;
-        m_Height = h;
-    }
-
-    template <typename T>
-    ImageView<T> getView(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t virtualPixelSize = 1) {
-        return ImageView<T>(*this, x, y, w, h, virtualPixelSize);
-    }
-
-    uint32_t getWidth(void) const noexcept { return m_Width; }
-    uint32_t getHeight(void) const noexcept { return m_Height; }
-    uint32_t getChannels(void) const noexcept { return m_NumChannels; }
-    
-    const uint8_t* data(void) const noexcept { return m_Data.get(); }
-    uint8_t* data(void) noexcept { return m_Data.get(); }
-private:
-    std::unique_ptr<uint8_t, void(*)(void*)> m_Data;
-    uint32_t m_NumChannels;
-    uint32_t m_Width, m_Height;
-};
+} 
 
 struct RGB_Pixel {
     uint8_t r;
@@ -303,6 +101,11 @@ struct RGB_Pixel {
     bool any(void) const noexcept { return bool(r | g | b); }
     bool operator&(const RGB_Pixel& other) { return any() && other.any(); }
 };
+
+using Image = anubis::Image;
+
+template <typename T>
+using ImageView = anubis::ImageView<T>;
 
 struct InvadersInfo {
     uint32_t tileWidth;
