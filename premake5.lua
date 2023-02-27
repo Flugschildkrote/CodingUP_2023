@@ -21,6 +21,7 @@ lib_dirs = {
 link_libs = {
     "anubis",
 	"stb",
+	"jsoncpp",
 	"libssl",
 	"libcrypto",
 	"sndfile",
@@ -94,6 +95,7 @@ workspace "CodingGames_2023"
 
 include "dependencies/anubis"
 include "dependencies/stb"
+include "dependencies/jsoncpp-1.9.5"
 
 -------------------------------------------------
 -----------[Sub projects detection]--------------

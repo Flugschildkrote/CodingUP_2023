@@ -160,6 +160,7 @@ template <typename T>
 class ImageView
 {
     using RawBuffer_t = std::conditional_t<std::is_const_v<T>, const void*, void*>;
+    using BytePtr_t = std::conditional_t<std::is_const_v<T>, const uint8_t*, uint8_t*>;
     using Image_t = std::conditional_t<std::is_const_v<T>, const Image, Image>;
 
 public:
@@ -169,41 +170,37 @@ public:
 
 public:
 
+    ImageView(void) = default;
+
     /*
      * Construct an image view starting at (x,y) and size of (w, h)
      * All parameters are expressed in virtual space (a virtual pixel is composed of (virtualScale x virtualScale) real pixels
      */
     ImageView(Image_t& img, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t virtualScale)
-        : m_Image(img), m_VirtualPixelWidth(virtualPxW), m_VirtualPixelHeight(virtualPxH)
+        : m_Image(img)
     {
         // Check boundaries
-        assert((x + w) * virtualScale <= img.width());
-        assert((y + h) * virtualScale <= img.height());
+        assert((x + w) * virtualScale <= img.getWidth());
+        assert((y + h) * virtualScale <= img.getHeight());
 
-        m_NumVirtualRows = w;
         const uint32_t pixelSizeByte = m_Image.getChannels();
-        const uint32_t virtualPixelSizeByteX = virtualPxW * pixelSizeByte;
-        const uint32_t xOffsetByteSize = virtualOffsetX * virtualPixelSizeByteX;
-        uint32_t virtualRowByteSize = (virtualPxW * pixelSizeByte);
-
 
         m_RawBuffer = m_Image.data();
-        m_VirtualRowSizeByte = m_Image.getChannels() * m_Image.getWidth() * virtualScale;
+        m_NumRows_VirtualSpace = h;
+        m_PixelByteSize_VirtualSpace = pixelSizeByte * virtualScale;
+        m_RowByteSize_VirtualSpace = m_PixelByteSize_VirtualSpace * m_Image.getWidth();
+        m_ViewRowByteSize = m_PixelByteSize_VirtualSpace * w;
+        m_ViewXOffsetBytes = m_PixelByteSize_VirtualSpace * x;
+        m_ViewYOffsetBytes = m_RowByteSize_VirtualSpace * y;
     }
+
 
     anubis::MemoryView<T> operator[](size_t rowIndex) 
     {
-        const uint32_t rowByteOffset
-
-
-        {
-            size_t pixelStride = m_Image.getChannels(); // We assume one byte per channel. Stride is the length of one pixel (RGB..) in bytes
-            size_t virtualPixelStride = pixelStride * m_VirtualPixelWidth;
-            size_t bufferOffset = m_RowSizeByte * m_VirtualPixelHeight * rowIndex;
-
-            RawBuffer_t rowBuffer = m_RawBuffer + bufferOffset;
-            return anubis::MemoryView<T>(rowBuffer, m_RowSizeByte, 0, virtualPixelStride);
-        }
+        const uint32_t rowAddress = static_cast<uint32_t>(m_ViewYOffsetBytes + (rowIndex * m_RowByteSize_VirtualSpace)); // Offset in byte to the start of the row
+        const uint32_t xOffset = m_ViewXOffsetBytes;
+        RawBuffer_t viewRowAddress = reinterpret_cast<BytePtr_t>(m_RawBuffer) + rowAddress + xOffset;
+        return anubis::MemoryView<T>(viewRowAddress, m_ViewRowByteSize, 0, m_PixelByteSize_VirtualSpace);
     }
 
     Iterator begin(void) noexcept { return Iterator(*this, 0); }
@@ -211,7 +208,7 @@ public:
 
     // Return the number of virtual rows of the picture
     size_t size(void) const noexcept {
-        return m_NumVirtualRows;
+        return m_NumRows_VirtualSpace;
     }
 
 
@@ -221,18 +218,27 @@ private:
     Image_t& m_Image;
     RawBuffer_t m_RawBuffer;
 
-    uint32_t m_NumVirtualRows; 
-    // Virtual size is how much of pixel is a "virtual" pixel composed of
-    // For example if we want to process an image per pixel, but the image was scaled up, we can use virtual pixels
-    uint32_t m_VirtualPixelWidth, m_VirtualPixelHeight;
-    uint32_t m_VirtualRowSizeByte;
+    uint32_t m_NumRows_VirtualSpace; 
+    uint32_t m_PixelByteSize_VirtualSpace;
+    uint32_t m_RowByteSize_VirtualSpace;
+    uint32_t m_ViewRowByteSize;
+
+    uint32_t m_ViewXOffsetBytes, m_ViewYOffsetBytes;
 };
 
 
 class Image
 {
 public:
-    //Image(void);
+    Image(void)
+        : m_Data(nullptr, stbi_image_free)
+    {
+
+    }
+
+    Image(Image&&) = default;
+    Image& operator=(Image&&) = default;
+
     Image(const std::string& filePath, uint32_t numChannels = 0)
         : m_Data(nullptr, stbi_image_free), m_NumChannels(0), m_Width(0), m_Height(0)
     {
@@ -250,11 +256,32 @@ public:
         m_Height = h;
     }
 
+    /**
+     * @brief Load an image from memory. The buffer must contain a real image (png, jpeg, etc..)
+     * 
+     */
     template <typename T>
-    ImageView<T> getView(uint32_t virtualPixelOffsetX, uint32_t virtualPixelOffsetY, uint32_t virtualWidth, uint32_t virtualHeight, size_t virtualPixelSize = 1) {
-        re
+    Image(const T* pBuffer, size_t bufferSize, uint32_t numChannels)
+        : m_Data(nullptr, stbi_image_free), m_NumChannels(0), m_Width(0), m_Height(0)
+    {
+        int w, h, comp;
+        int sizeByte = int(sizeof(T) * bufferSize);
+        stbi_uc* pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(pBuffer), sizeByte, &w, &h, &comp, m_NumChannels);
+        if (!pixels) {
+            std::cout << stbi_failure_reason() << std::endl;
+            throw std::runtime_error("Failed to loag image from buffer");
+        }
+
+        m_Data.reset(pixels);
+        m_NumChannels = numChannels ? numChannels : comp;
+        m_Width = w;
+        m_Height = h;
     }
 
+    template <typename T>
+    ImageView<T> getView(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t virtualPixelSize = 1) {
+        return ImageView<T>(*this, x, y, w, h, virtualPixelSize);
+    }
 
     uint32_t getWidth(void) const noexcept { return m_Width; }
     uint32_t getHeight(void) const noexcept { return m_Height; }
@@ -268,13 +295,28 @@ private:
     uint32_t m_Width, m_Height;
 };
 
+struct RGB_Pixel {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
 
+    bool any(void) const noexcept { return bool(r | g | b); }
+    bool operator&(const RGB_Pixel& other) { return any() && other.any(); }
+};
+
+struct InvadersInfo {
+    uint32_t tileWidth;
+    uint32_t tileHeight;
+    Image invadersImage;
+    std::vector<ImageView<RGB_Pixel>> invaders;
+} invadersInfo;
 
 //std::map<char, 
 
 void parseSpaceInvaders(void) {
 
-    Image refInvaders("data/invaders_ref.png", 3);
+    invadersInfo.invadersImage = Image("data/invaders_ref.png", 3);
+    Image& refInvaders = invadersInfo.invadersImage;
 
     const uint32_t w = refInvaders.getWidth();
     const uint32_t h = refInvaders.getHeight();
@@ -317,7 +359,21 @@ end_scan:
     int tileWidth = w / pixelScale / numAliens;
 
 
+    std::vector<ImageView<RGB_Pixel>> &alienReferences = invadersInfo.invaders;
+    for (uint32_t i = 0; i < numAliens; ++i) {
+        alienReferences.push_back(refInvaders.getView<RGB_Pixel>(i* tileWidth, 0, tileWidth, tileHeight, pixelScale));
+    }
+    invadersInfo.tileWidth = tileWidth;
+    invadersInfo.tileHeight = tileHeight;
 
+
+    /*ImageView<RGB_Pixel> view = refInvaders.getView<RGB_Pixel>(0, 0, tileWidth, tileHeight, pixelScale);
+    for (auto row : view) {
+        for (const auto& pixel : row) {
+            std::cout << pixel.any();
+        }
+        std::cout << std::endl;
+    }*/
 
     std::cout << "Pixel size=" << pixelScale << ", " << tileWidth << "x" << tileHeight << std::endl;
 
@@ -325,46 +381,108 @@ end_scan:
 
 int main(void)
 {
-    parseSpaceInvaders();
-    //return EXIT_SUCCESS;
-    auto printOperator = [](const int& value, size_t accumulator) {
-        std::cout << value << "-" << std::endl;
-        return 0;
-    };
+    try {
+        parseSpaceInvaders();
+        //return EXIT_SUCCESS;
+        auto printOperator = [](const int& value, size_t accumulator) {
+            std::cout << value << "-" << std::endl;
+            return 0;
+        };
 
-    anubis::Tree<int> myTree(0);
-    anubis::Tree<int>* t10 = myTree.addNode(10);
+        anubis::Tree<int> myTree(0);
+        anubis::Tree<int>* t10 = myTree.addNode(10);
         anubis::Tree<int>* t20 = t10->addNode(20);
         anubis::Tree<int>* t21 = t10->addNode(21);
-    anubis::Tree<int>* t11 = myTree.addNode(11);
+        anubis::Tree<int>* t11 = myTree.addNode(11);
         anubis::Tree<int>* t22 = t11->addNode(22);
         anubis::Tree<int>* t23 = t11->addNode(23);
 
-    std::cout << myTree.size() << std::endl;
-    myTree.traverse<int>(printOperator, 0, 2);
+        std::cout << myTree.size() << std::endl;
+        myTree.traverse<int>(printOperator, 0, 2);
 
-    // https://pydefis.callicode.fr/defis/C22_Invaders01/post/Anubis29/57f04
-    anubis::net::HTTPSession httpSession("pydefis.callicode.fr", true);
+        // https://pydefis.callicode.fr/defis/C22_Invaders01/post/Anubis29/57f04
+        anubis::net::HTTPSession httpSession("pydefis.callicode.fr", true);
 
-    std::string data;
-    CURLcode result = httpSession.get<std::string>("/defis/C22_Invaders01/get/Anubis29/57f04", data, stringReader);
+        std::string data;
+        CURLcode result = httpSession.get<std::string>("/defis/C22_Invaders01/get/Anubis29/57f04", data, stringReader);
 
-    if (result == CURLE_OK) {
-        std::cout << data << std::endl;
-        size_t endLine = data.find_first_of('\n');
-        std::string_view base64Data(data.begin() + endLine + 1, data.end()); // remove the -- Anubis -- header sent by the server
-        std::cout << "base64 data length=" << base64Data.length() << std::endl;
-        std::vector<uint8_t> pixels = base64Decode(base64Data);
-        std::string_view pixelView((const char*)pixels.data(), pixels.size());
-        //std::cout << pixelView << std::endl;
-        //std::cout << pixels.size() << std::endl;
-        std::ofstream pngout("data/out.png", std::ios::binary);
-        pngout.write((const char*)pixels.data(), pixels.size());
+        if (result == CURLE_OK) {
+            std::cout << data << std::endl;
+            size_t endLine = data.find_first_of('\n');
+            std::string_view myKey(data.begin() , data.begin() + endLine); // remove the -- Anubis -- header sent by the server
+            std::string_view base64Data(data.begin() + endLine + 1, data.end()); // remove the -- Anubis -- header sent by the server
+            std::cout << "base64 data length=" << base64Data.length() << std::endl;
+            std::vector<uint8_t> pixels = base64Decode(base64Data);
+            std::string_view pixelView((const char*)pixels.data(), pixels.size());
 
-       // stbi_write_bmp("Out.bmp", 40, 20, 3, pixels.data());
+            Image mysteryPicture(pixels.data(), pixels.size(), 3);
+
+            //std::cout << mysteryPicture.getChannels() << std::endl;
+            // 
+            // 
+            //std::cout << pixels.size() << std::endl;
+
+            std::string invadersString = "";
+            for (int mysteryInvaderId = 0; mysteryInvaderId < (6 * 4); ++mysteryInvaderId) 
+            {
+                size_t x = (mysteryInvaderId % 6) * invadersInfo.tileWidth;
+                size_t y = (mysteryInvaderId / 6) * invadersInfo.tileHeight;
+
+                ImageView<RGB_Pixel> mysteryInvader = mysteryPicture.getView<RGB_Pixel>(x, y, invadersInfo.tileWidth, invadersInfo.tileHeight, 4);
+
+
+                for (int refInvaderId = 0; refInvaderId < invadersInfo.invaders.size(); ++refInvaderId)
+                {
+                    ImageView<RGB_Pixel>& refInvader = invadersInfo.invaders[refInvaderId];
+                    bool match = true;
+                    for (size_t y = 0; y < refInvader.size(); ++y)
+                    {
+                        auto refRow = refInvader[y];
+                        auto firstInvaderRow = mysteryInvader[y];
+
+                        for (size_t x = 0; x < refRow.size() && match; ++x)
+                        {
+                            match = refRow[x].any() == firstInvaderRow[x].any();
+                        }
+                    }
+
+                    if (match) {
+                        invadersString += char('A' + refInvaderId);
+                        //std::cout << char('A' + refInvaderId);
+                    }
+                }
+
+                /*for (auto row : mysteryInvader) {
+                    for (const auto& pixel : row) {
+                        std::cout << pixel.any();
+                    }
+                    std::cout << std::endl;
+                }
+                std::cout << std::endl;*/
+            }
+            std::cout << std::endl;
+
+            std::string inData;
+            std::function<std::string(const std::string&)> writer = [](const std::string& str) -> std::string { return str; };
+
+            std::string jsonRes = "sig=" + std::string(myKey) + "&rep=" + invadersString;
+            /*Json::Value root;
+            root["sig"] = std::string(myKey);
+            root["rep"] = invadersString;*/
+
+            CURLcode result = httpSession.post<std::string>("/defis/C22_Invaders01/post/Anubis29/57f04", jsonRes, writer, inData, stringReader, "application/x-www-form-urlencoded");
+            std::cout << "Result=" << result << "\nData = \"" << inData << "\"" << std::endl;
+            std::ofstream pngout("data/out.png", std::ios::binary);
+            pngout.write((const char*)pixels.data(), pixels.size());
+
+            // stbi_write_bmp("Out.bmp", 40, 20, 3, pixels.data());
+        }
+        else {
+            std::cout << "error while reading : " << result << std::endl;
+        }
     }
-    else {
-        std::cout << "error while reading : " << result << std::endl;
+    catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
     }
 
     return EXIT_SUCCESS;
