@@ -116,7 +116,7 @@ struct InvadersInfo {
 
 //std::map<char, 
 
-void parseSpaceInvaders(void) {
+void readSpaceInvadersReferenceFile(void) {
 
     invadersInfo.invadersImage = Image("data/invaders_ref.png", 3);
     Image& refInvaders = invadersInfo.invadersImage;
@@ -185,7 +185,7 @@ end_scan:
 int main(void)
 {
     try {
-        parseSpaceInvaders();
+        readSpaceInvadersReferenceFile();
         //return EXIT_SUCCESS;
         auto printOperator = [](const int& value, size_t accumulator) {
             std::cout << value << "-" << std::endl;

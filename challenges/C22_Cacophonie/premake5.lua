@@ -25,4 +25,7 @@ project(prj_name)
 
 	links (link_libs)
 
-	postbuildcommands (post_build_copy_commands)
+	filter "platforms:x86"
+		postbuildcommands(GetPostPostBuildCommands("x86"))
+	filter "platforms:x64"
+		postbuildcommands(GetPostPostBuildCommands("x64"))
