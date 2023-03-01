@@ -1,6 +1,11 @@
 #ifndef ANUBIS_IMAGE_VIEW_HPP
 #define ANUBIS_IMAGE_VIEW_HPP
 
+#include <type_traits>
+#include <anubis/util/Iterator.hpp>
+#include <anubis/util/MemoryView.hpp>
+#include <anubis/image/ImageView.hpp>
+
 namespace anubis
 {
     class Image;
@@ -73,7 +78,8 @@ namespace anubis
         uint32_t m_RowByteSize_VirtualSpace;
         uint32_t m_ViewRowByteSize;
 
-        uint32_t m_ViewXOffsetBytes, m_ViewYOffsetBytes;
+        uint32_t m_ViewXOffsetBytes;
+        uint32_t m_ViewYOffsetBytes;
     };
 }
 

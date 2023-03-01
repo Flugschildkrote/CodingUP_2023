@@ -15,9 +15,12 @@
 #include <functional>
 #include <sstream>
 
+#define ANUBIS_NET_ENABLE_DUMP 1
+
 namespace anubis {
 namespace net {
 
+#if ANUBIS_NET_ENABLE_DUMP != 0
     static void dump(const char* text,
             FILE* stream, unsigned char* ptr, size_t size,
             char nohex)
@@ -28,7 +31,7 @@ namespace net {
         unsigned int width = 0x10;
 
         if (nohex)
-            /* without the hex output, we can fit more on screen */
+            // without the hex output, we can fit more on screen 
             width = 0x40;
 
         fprintf(stream, "%s, %10.10lu bytes (0x%8.8lx)\n",
@@ -39,7 +42,7 @@ namespace net {
             fprintf(stream, "%4.4lx: ", (unsigned long)i);
 
             if (!nohex) {
-                /* hex not disabled, show it */
+                // hex not disabled, show it 
                 for (c = 0; c < width; c++)
                     if (i + c < size)
                         fprintf(stream, "%02x ", ptr[i + c]);
@@ -48,7 +51,7 @@ namespace net {
             }
 
             for (c = 0; (c < width) && (i + c < size); c++) {
-                /* check for 0D0A; if found, skip past and start a new line of output */
+                // check for 0D0A; if found, skip past and start a new line of output 
                 if (nohex && (i + c + 1 < size) && ptr[i + c] == 0x0D &&
                     ptr[i + c + 1] == 0x0A) {
                     i += (c + 2 - width);
@@ -56,14 +59,14 @@ namespace net {
                 }
                 fprintf(stream, "%c",
                     (ptr[i + c] >= 0x20) && (ptr[i + c] < 0x80) ? ptr[i + c] : '.');
-                /* check again for 0D0A, to avoid an extra \n if it's at width */
+                // check again for 0D0A, to avoid an extra \n if it's at width
                 if (nohex && (i + c + 2 < size) && ptr[i + c + 1] == 0x0D &&
                     ptr[i + c + 2] == 0x0A) {
                     i += (c + 3 - width);
                     break;
                 }
             }
-            fputc('\n', stream); /* newline */
+            fputc('\n', stream); // newline
         }
         fflush(stream);
     }
@@ -75,13 +78,13 @@ namespace net {
     {
         char config = *reinterpret_cast<char*>(userp);
         const char* text;
-        (void)handle; /* prevent compiler warning */
+        (void)handle; // prevent compiler warning
 
         switch (type) {
         case CURLINFO_TEXT:
             fprintf(stderr, "== Info: %s", data);
-            /* FALLTHROUGH */
-        default: /* in case a new one is introduced to shock us */
+            // FALLTHROUGH
+        default: // in case a new one is introduced to shock us 
             return 0;
 
         case CURLINFO_HEADER_OUT:
@@ -107,6 +110,7 @@ namespace net {
         dump(text, stderr, (unsigned char*)data, size, config);
         return 0;
     }
+#endif // ANUBIS_NET_ENABLE_DUMP != 0
 
 class HTTPSession 
 {
@@ -223,11 +227,12 @@ private:
         curl_easy_setopt(m_Session, CURLOPT_POSTFIELDS, postData.c_str());
         curl_easy_setopt(m_Session, CURLOPT_HTTPHEADER, headerList);
 
-        char trace_ascii = 1; /* enable ascii tracing */
+#if ANUBIS_NET_ENABLE_DUMP != 0
+        char trace_ascii = 1; // enable ascii tracing
         curl_easy_setopt(m_Session, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(m_Session, CURLOPT_DEBUGFUNCTION, my_trace);
         curl_easy_setopt(m_Session, CURLOPT_DEBUGDATA, &trace_ascii);
-
+#endif // ANUBIS_NET_ENABLE_DUMP != 0
         CURLcode curlStatus = curl_easy_perform(m_Session);
         curl_slist_free_all(headerList);
         return curlStatus;
